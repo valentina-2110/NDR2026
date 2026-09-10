@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>StemPower — Player Interattivo</title>
+<style>
+   @font-face{
+    font-family: 'Montserrat';
+    src: url('fonts/montserrat-latin-400-normal.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face{
+    font-family: 'Montserrat';
+    src: url('fonts/montserrat-latin-500-normal.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face{
+    font-family: 'Montserrat';
+    src: url('fonts/montserrat-latin-600-normal.woff2') format('woff2');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face{
+    font-family: 'Montserrat';
+    src: url('fonts/montserrat-latin-700-normal.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  :root{
+    --marble: #efece6;
+    --ink: #1a1a1a;
+    --gold: #b08d57;
+    --gold-light: #d4b483;
+  }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:#000; overflow:hidden;
+    font-family: 'Montserrat', Arial, sans-serif;
+  }
+  #stage{
+    position:relative; width:100vw; height:100vh;
+    background:#000;
+  }
+  video{
+    position:absolute; top:0; left:0;
+    width:100%; height:100%;
+    object-fit:contain;
+    opacity:0;
+    transition:opacity .5s ease;
+  }
+  video.active{ opacity:1; z-index:2; }
+  video.inactive{ opacity:0; z-index:1; }
+
+  /* schermata iniziale */
+  #startScreen{
+    position:absolute; inset:0; z-index:50;
+    background:#0a0a0a;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color: var(--marble);
+    cursor:pointer;
+  }
+  #startScreen h1{
+    font-weight:400; letter-spacing:.02em; font-size:2.4vw;
+    margin:0 0 1.2vw 0; color: var(--marble);
+  }
+  #startScreen p{
+    font-size:1.1vw; color: var(--gold-light); margin:0;
+  }
+  #startScreen .dot{
+    width:14px; height:14px; border-radius:50%;
+    background: var(--gold); margin-top:2vw;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ transform:scale(1); opacity:.6; }
+    50%{ transform:scale(1.4); opacity:1; }
+  }
+
+  /* overlay quiz */
+  #quizOverlay{
+    position:absolute; inset:0; z-index:10;
+    display:none;
+    align-items:flex-end; justify-content:center;
+    padding-bottom: 24vh;
+    padding-left: 5vh;
+    pointer-events:none;
+  }
+  #quizOverlay.visible{ display:flex; }
+  #choices{
+    display:flex; gap:2.5vw;
+    pointer-events:auto;
+  }
+  .choiceBtn{
+    min-width:16vw;
+    padding:1.0vw 4.4vw;
+    font-family: 'Montserrat', Arial, sans-serif;
+    font-size:2.5vw;
+    text-transform: uppercase;
+    color: #016092;
+    background: #ffffff;
+    border: 2.5px solid #47beb8;
+    border-radius:55px;
+    cursor:pointer;
+    letter-spacing:.03em;
+    backdrop-filter: blur(4px);
+    transition: background .18s ease, transform .18s ease, border-color .18s ease;
+  }
+  .choiceBtn:hover{
+    background: #47beb8;
+    color: #ffffff;
+    border-color: #47beb8;
+    transform: translateY(-3px);
+  }
+  .choiceBtn:active{ transform: translateY(0); }
+
+  /* corner controls (staff only) */
+  #cornerControls{
+    position:absolute; top:0; right:0; z-index:99;
+    width:70px; height:70px;
+    cursor:pointer;
+  }
+  #resetToast{
+    position:absolute; top:6vh; left:50%; transform:translateX(-50%);
+    z-index:100; color:var(--gold-light); font-size:1.2vw;
+    background:rgba(0,0,0,.7); padding:.6vw 1.4vw; border-radius:2px;
+    opacity:0; pointer-events:none; transition:opacity .3s ease;
+  }
+  #resetToast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <video id="videoA" class="active" playsinline></video>
+  <video id="videoB" class="inactive" playsinline></video>
+
+  <div id="quizOverlay">
+    <div id="choices"></div>
+  </div>
+
+  <div id="startScreen">
+    <h1>StemPower</h1>
+    <p>Clicca per iniziare</p>
+    <div class="dot"></div>
+  </div>
+
+  <!-- angolo in alto a destra: doppio click per resettare il percorso (uso staff) -->
+  <div id="cornerControls"></div>
+  <div id="resetToast">Percorso riavviato</div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIGURAZIONE DEL PERCORSO
+   -------------------------------------------------------------------------
+   Ogni "nodo" è una scena. Un nodo normale ha un solo "next".
+   Un nodo "quiz" ha "options": dopo che il video della domanda finisce,
+   compaiono i bottoni; al click parte il video collegato a quell'opzione.
+
+   Metti tutti i file video nella stessa cartella di questo HTML,
+   in una sottocartella chiamata "videos/", e aggiorna i nomi qui sotto.
+   ========================================================================= */
+const START_NODE = "ada_quiz";
+
+const NODES = {
+  /* Ogni video contiene già al suo interno la domanda con V/F.
+     Al click su uno dei due bottoni si passa DIRETTAMENTE al video
+     della domanda successiva (nessun video di feedback intermedio). */
+
+  // --- Video 1: contiene già la prima domanda ---
+  ada_quiz: {
+    video: "video/video_stempower_1.mp4",
+    type: "quiz",
+    options: [
+      { label: "Vero",  next: "marie_quiz" },
+      { label: "Falso", next: "marie_quiz" }
+    ]
+  },
+
+  // --- Video 2: contiene già la seconda domanda ---
+  marie_quiz: {
+    video: "video/video_stempower_2.mp4",
+    type: "quiz",
+    options: [
+      { label: "Vero",  next: "ada_quiz_2" },
+      { label: "Falso", next: "ada_quiz_2" }
+    ]
+  },
+
+  // --- Video 3: contiene già la terza domanda ---
+  ada_quiz_2: {
+    video: "video/video_stempower_3.mp4",
+    type: "quiz",
+    options: [
+      { label: "Vero",  next: "finale" },
+      { label: "Falso", next: "finale" }
+    ]
+  },
+
+  // --- Video finale: semplice, nessuna domanda ---
+  // "next: null" -> a fine video il percorso si riavvia da START_NODE
+  finale: {
+    video: "video/video_stempower_4.mp4",
+    next: null
+  }
+};
+
+/* ========================================================================= */
+
+const videoA = document.getElementById("videoA");
+const videoB = document.getElementById("videoB");
+const startScreen = document.getElementById("startScreen");
+const quizOverlay = document.getElementById("quizOverlay");
+const choicesDiv = document.getElementById("choices");
+const resetToast = document.getElementById("resetToast");
+const cornerControls = document.getElementById("cornerControls");
+
+let activeVideo = videoA;
+let inactiveVideo = videoB;
+const preloadCache = new Set();
+
+function swapVideos(){
+  activeVideo.classList.remove("active");
+  activeVideo.classList.add("inactive");
+  inactiveVideo.classList.remove("inactive");
+  inactiveVideo.classList.add("active");
+  const tmp = activeVideo;
+  activeVideo = inactiveVideo;
+  inactiveVideo = tmp;
+}
+
+function preload(src){
+  if(!src || preloadCache.has(src)) return;
+  preloadCache.add(src);
+  const v = document.createElement("video");
+  v.preload = "auto";
+  v.muted = true;
+  v.src = src;
+  v.load();
+}
+
+function preloadUpcoming(node){
+  if(node.type === "quiz"){
+    node.options.forEach(opt => preload(NODES[opt.next]?.video));
+  } else if(node.next){
+    preload(NODES[node.next]?.video);
+  }
+}
+
+function playNode(id){
+  const node = NODES[id];
+  if(!node){ console.warn("Nodo non trovato:", id); return; }
+
+  quizOverlay.classList.remove("visible");
+  choicesDiv.innerHTML = "";
+
+  inactiveVideo.src = node.video;
+  inactiveVideo.onloadeddata = () => {
+    inactiveVideo.play().then(() => {
+      swapVideos();
+    }).catch(err => console.warn("Playback bloccato:", err));
+  };
+  inactiveVideo.onended = () => {
+    if(node.type === "quiz"){
+      showQuiz(node);
+    } else if(node.next){
+      playNode(node.next);
+    } else {
+      // fine percorso -> torna alla schermata iniziale
+      activeVideo.pause();
+      startScreen.style.display = "flex";
+    }
+  };
+  inactiveVideo.load();
+
+  preloadUpcoming(node);
+}
+
+function showQuiz(node){
+  quizOverlay.classList.add("visible");
+  node.options.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.className = "choiceBtn";
+    btn.textContent = opt.label;
+    btn.onclick = () => {
+      quizOverlay.classList.remove("visible");
+      playNode(opt.next);
+    };
+    choicesDiv.appendChild(btn);
+  });
+}
+
+/* Avvio: il primo click sblocca l'audio nei browser e parte il percorso */
+startScreen.addEventListener("click", () => {
+  startScreen.style.display = "none";
+  document.documentElement.requestFullscreen?.().catch(()=>{});
+  playNode(START_NODE);
+});
+
+/* Doppio click nell'angolo in alto a destra: riavvia il percorso (uso staff) */
+let clickTimer = null;
+cornerControls.addEventListener("click", () => {
+  if(clickTimer){
+    clearTimeout(clickTimer);
+    clickTimer = null;
+    activeVideo.pause();
+    inactiveVideo.pause();
+    resetToast.classList.add("show");
+    setTimeout(() => resetToast.classList.remove("show"), 1200);
+    playNode(START_NODE);
+  } else {
+    clickTimer = setTimeout(() => { clickTimer = null; }, 400);
+  }
+});
+</script>
+</body>
+</html>
