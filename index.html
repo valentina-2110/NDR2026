@@ -58,30 +58,34 @@
   video.inactive{ opacity:0; z-index:1; }
 
   /* schermata iniziale */
-  #startScreen{
-    position:absolute; inset:0; z-index:50;
-    background:#0a0a0a;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    color: var(--marble);
-    cursor:pointer;
-  }
-  #startScreen h1{
-    font-weight:400; letter-spacing:.02em; font-size:2.4vw;
-    margin:0 0 1.2vw 0; color: var(--marble);
-  }
-  #startScreen p{
-    font-size:1.1vw; color: var(--gold-light); margin:0;
-  }
-  #startScreen .dot{
-    width:14px; height:14px; border-radius:50%;
-    background: var(--gold); margin-top:2vw;
-    animation: pulse 1.6s ease-in-out infinite;
-  }
-  @keyframes pulse{
-    0%,100%{ transform:scale(1); opacity:.6; }
-    50%{ transform:scale(1.4); opacity:1; }
-  }
-
+#startScreen{
+  position:absolute; inset:0; z-index:50;
+  background-image: url('video/copertina_StemPower_NDR2026.png');
+  background-size: cover;
+  background-position: center;
+  display:flex; align-items:flex-end; justify-content:center;
+  padding-bottom: 18vh;
+  cursor:pointer;
+}
+#startBtn{
+  font-family: 'Montserrat', Arial, sans-serif;
+  font-weight: 700;
+  font-size: 1.6vw;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: #016092;
+  border: none;
+  border-radius: 55px;
+  padding: 1.2vw 4.5vw;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+  transition: background .18s ease, transform .18s ease;
+}
+#startBtn:hover{
+  background: #47beb8;
+  transform: translateY(-3px);
+}
   /* overlay quiz */
   #quizOverlay{
     position:absolute; inset:0; z-index:10;
@@ -119,6 +123,9 @@
   }
   .choiceBtn:active{ transform: translateY(0); }
 
+  #choices:has(.choiceBtn:only-child){
+  margin-left: -6vh; /* compensa il padding-left di #quizOverlay quando c'è un solo bottone */
+}
   /* corner controls (staff only) */
   #cornerControls{
     position:absolute; top:0; right:0; z-index:99;
@@ -145,9 +152,7 @@
   </div>
 
   <div id="startScreen">
-    <h1>StemPower</h1>
-    <p>Clicca per iniziare</p>
-    <div class="dot"></div>
+    <button id="startBtn">Inizia</button>
   </div>
 
   <!-- angolo in alto a destra: doppio click per resettare il percorso (uso staff) -->
@@ -198,15 +203,48 @@ const NODES = {
     video: "video/video_stempower_3.mp4",
     type: "quiz",
     options: [
-      { label: "Vero",  next: "finale" },
-      { label: "Falso", next: "finale" }
+      { label: "Vero",  next: "rosalind" },
+      { label: "Falso", next: "rosalind" }
     ]
   },
 
+    // --- Video 4: rosalind + attività ---
+  rosalind: {
+    video: "video/video_stempower_4.mp4",
+    type: "quiz",
+    options: [
+      { label: "Continua",  next: "rita" }
+    ]
+  },
+
+    // --- Video 5: ursula + attività ---
+  rita: {
+    video: "video/video_stempower_5.mp4",
+    type: "quiz",
+    options: [
+      { label: "Continua",  next: "ursula" }
+    ]
+  },
+      // --- Video 5: ursula + attività ---
+  ursula: {
+    video: "video/video_stempower_6.mp4",
+    type: "quiz",
+    options: [
+      { label: "Continua",  next: "tharp" }
+    ]
+  },
+      // --- Video 5: ursula + attività ---
+  tharp: {
+    video: "video/video_stempower_7.mp4",
+    type: "quiz",
+    options: [
+      { label: "Continua",  next: "finale" }
+    ]
+  },
   // --- Video finale: semplice, nessuna domanda ---
   // "next: null" -> a fine video il percorso si riavvia da START_NODE
   finale: {
-    video: "video/video_stempower_4.mp4",
+    video: "video/video_stempower_8.mp4",
     next: null
   }
 };
@@ -215,7 +253,7 @@ const NODES = {
 
 const videoA = document.getElementById("videoA");
 const videoB = document.getElementById("videoB");
-const startScreen = document.getElementById("startScreen");
+const startBtn = document.getElementById("startBtn"); // NUOVO
 const quizOverlay = document.getElementById("quizOverlay");
 const choicesDiv = document.getElementById("choices");
 const resetToast = document.getElementById("resetToast");
@@ -297,7 +335,7 @@ function showQuiz(node){
 }
 
 /* Avvio: il primo click sblocca l'audio nei browser e parte il percorso */
-startScreen.addEventListener("click", () => {
+startBtn.addEventListener("click", () => {   // era: startScreen.addEventListener
   startScreen.style.display = "none";
   document.documentElement.requestFullscreen?.().catch(()=>{});
   playNode(START_NODE);
